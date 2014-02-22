@@ -42,10 +42,11 @@ conf = info.readConfig()
 cur.execute("SELECT value FROM site WHERE setting = 'tablepergroup'")
 allowed = cur.fetchone()
 if int(allowed[0]) == 0:
-	print(bcolors.ERROR + "Table per group not enabled" + bcolors.ENDC)
+	print(bcolors.ERROR + "Table per group is not enabled" + bcolors.ENDC)
 	sys.exit()
 
-cur.execute("SELECT id FROM groups WHERE active = 1 ORDER by cast(last_record as signed) - cast(first_record as signed) DESC")
+#cur.execute("SELECT id FROM groups WHERE active = 1 ORDER by cast(last_record as signed) - cast(first_record as signed) DESC")
+cur.execute("SELECT DISTINCT g.id, active, backfill FROM groups g LEFT OUTER JOIN releases r ON r.groupid = g.id GROUP BY g.id ORDER by active DESC, backfill DESC, (cast(last_record as signed) - cast(first_record as signed)) DESC, COUNT(r.id) DESC")
 datas = cur.fetchall()
 
 if not datas:
@@ -102,7 +103,7 @@ def main():
 		if count >= threads:
 			count = 0
 		count += 1
-		my_queue.put("%s  %s" % (str(release[0]), count))
+		my_queue.put("%s  %s  %s  %s" % (str(release[0]), str(release[1]), str(release[2]), count))
 
 	my_queue.join()
 	cur.close()
@@ -110,7 +111,7 @@ def main():
 
 	#stage7b
 	final = "Stage7b"
-	subprocess.call(["php", pathname+"/../nix/tmux/bin/update_releases.php", ""+str(final)])
+	subprocess.call(["php", pathname+"/../nix/tmux/bin/update_per_group.php", ""+str(final)])
 
 	print(bcolors.HEADER + "\nUpdate Releases Threaded Completed at {}".format(datetime.datetime.now().strftime("%H:%M:%S")) + bcolors.ENDC)
 	print(bcolors.HEADER + "Running time: {}\n\n".format(str(datetime.timedelta(seconds=time.time() - start_time))) + bcolors.ENDC)

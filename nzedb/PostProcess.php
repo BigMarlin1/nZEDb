@@ -362,7 +362,6 @@ class PostProcess
 			}
 		}
 
-
 		$rescount = $startCount = $totresults;
 		if ($rescount > 0) {
 			if ($this->echooutput && $rescount > 1) {

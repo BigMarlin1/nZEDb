@@ -19,6 +19,7 @@ $consoletools = new ConsoleTools();
 $binaries = new Binaries();
 $backfill = new Backfill();
 $db = new DB();
+$path = nZEDb_MISC . 'testing' . DS . 'Dev' . DS;
 
 // Create the connection here and pass, this is for post processing, so check for alternate
 $nntp = new NNTP();
@@ -34,40 +35,36 @@ if ($releases->hashcheck == 0) {
 }
 
 if ($pieces[0] != 'Stage7b') {
-	// Update Binaries per group
-	$binaries->updateGroup($group, $nntp);
+	// Update Binaries per group if group is active
+	if ($pieces[1] === 1) {
+		$binaries->updateGroup($group, $nntp);
+	}
 
-	// Backfill per group
-	$backfill->backfillPostAllGroups($nntp, $groupname, 20000, 'normal');
+	// Backfill per group if group enabled for backfill
+	if ($pieces[2] === 1) {
+		$backfill->backfillPostAllGroups($nntp, $groupname, 20000, 'normal');
+	}
 
 	// Update Releases per group
 	try {
-		$test = $db->prepare('SELECT * FROM collections_' . $pieces[0]);
-		$test->execute();
+		$test = $db->queryOneRow("SHOW TABLE STATUS WHERE name = 'collections_" . $groupid . "'");
 		// Don't even process the group if no collections
-		if ($test->rowCount() == 0) {
-			//$mask = "%-30.30s has %s collections, skipping.\n";
-			//printf($mask, str_replace('alt.binaries', 'a.b', $groupname), number_format($test->rowCount()));
-			exit();
+		if (isset($test['name'])) {
+			$releases->processReleasesStage1($groupid);
+			$releases->processReleasesStage2($groupid);
+			$releases->processReleasesStage3($groupid);
+			$retcount = $releases->processReleasesStage4($groupid);
+			$releases->processReleasesStage5($groupid);
+			$releases->processReleasesStage7a($groupid);
 		}
 	} catch (PDOException $e) {
 		//No collections available
-		//exit($groupname." has no collections to process\n");
 		exit();
 	}
 
-	// Runs function that are per group
-	$releases->processReleasesStage1($groupid);
-	$releases->processReleasesStage2($groupid);
-	$releases->processReleasesStage3($groupid);
-	$retcount = $releases->processReleasesStage4($groupid);
-	$releases->processReleasesStage5($groupid);
-	$releases->processReleasesStage7a($groupid);
-//	$mask = "%-30.30s added %s releases.\n";
-//	$first = number_format($retcount);
-//	if($retcount > 0)
-//		printf($mask, str_replace('alt.binaries', 'a.b', $groupname), $first);
 
+	echo $c->header("Processing renametopre for group ${groupid}");
+	passthru("php " . $path . "renametopre.php full " . $groupid . " false");
 	$postprocess = new PostProcess(true);
 	$postprocess->processAdditional(null, null, null, $groupid, $nntp);
 	$nfopostprocess = new Nfo(true);
@@ -75,11 +72,10 @@ if ($pieces[0] != 'Stage7b') {
 	if ($site->nntpproxy != "1") {
 		$nntp->doQuit();
 	}
-} else if ($pieces[0] == 'Stage7b') {
+} else if ($pieces[0] === 'Stage7b') {
 	// Runs functions that run on releases table after all others completed
 	$groupid = '';
 	$releases->processReleasesStage4dot5($groupid);
 	$releases->processReleasesStage6(1, 0, $groupid, $nntp);
 	$releases->processReleasesStage7b();
-	//echo 'Deleted '.number_format($deleted)." collections/binaries/parts.\n";
 }

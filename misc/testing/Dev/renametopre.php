@@ -32,11 +32,14 @@ function preName($argv, $argc)
 	$groups = new Groups();
 	$category = new Category();
 	$internal = $external = $pre = $none = 0;
+	$echooutput = true;
 	$show = 2;
 	if ($argv[$argc - 1] === 'show') {
 		$show = 1;
 	} else if ($argv[$argc - 1] === 'bad') {
 		$show = 3;
+	} else if ($argv[$argc - 1] === 'false') {
+		$echooutput = false;
 	}
 	$counter = 0;
 	$c = new ColorCLI();
@@ -79,8 +82,15 @@ function preName($argv, $argc)
 	} else {
 		$why = ' WHERE 1=1';
 	}
-	resetSearchnames();
-	echo $c->header("SELECT id, name, searchname, groupid, categoryid FROM releases" . $why . $what . $where . ";\n");
+	if ((isset($argv[2]) && is_numeric($argv[2]) && $full === true) || (isset($argv[2]) && preg_match('/\([\d, ]+\)/', $argv[2]) && $full === true)) {
+		resetSearchnames($argv[2], $echooutput);
+	} else {
+		resetSearchnames('', $echooutput);
+	}
+
+	if ($echooutput === true) {
+		echo $c->header("SELECT id, name, searchname, groupid, categoryid FROM releases" . $why . $what . $where . ";\n");
+	}
 	$res = $db->queryDirect("SELECT id, name, searchname, groupid, categoryid FROM releases" . $why . $what . $where);
 	$total = $res->rowCount();
 	if ($total > 0) {
@@ -176,39 +186,45 @@ function preName($argv, $argc)
 			}
 		}
 	}
-	echo $c->header("\n" . number_format($pre) . " renamed using preDB Match\n" . number_format($external) . " renamed using ReleaseCleaning.php\n" . number_format($internal) . " using renametopre.php\nout of " . number_format($total) . " releases.\n");
-	if (isset($argv[1]) && is_numeric($argv[1]) && !isset($argv[2])) {
-		echo $c->header("Categorizing all releases using searchname from the last ${argv[1]} hours. This can take a while, be patient.");
-	} else if (isset($argv[1]) && $argv[1] !== "all" && isset($argv[2]) && !is_numeric($argv[2]) && !preg_match('/\([\d, ]+\)/', $argv[2])) {
-		echo $c->header("Categorizing all non-categorized releases in other->misc using searchname. This can take a while, be patient.");
-	} else if (isset($argv[1]) && isset($argv[2]) && (is_numeric($argv[2]) || preg_match('/\([\d, ]+\)/', $argv[2]))) {
-		echo $c->header("Categorizing all non-categorized releases in ${argv[2]} using searchname. This can take a while, be patient.");
-	} else {
-		echo $c->header("Categorizing all releases using searchname. This can take a while, be patient.");
+	if ($echooutput === true) {
+		echo $c->header("\n" . number_format($pre) . " renamed using preDB Match\n" . number_format($external) . " renamed using ReleaseCleaning.php\n" . number_format($internal) . " using renametopre.php\nout of " . number_format($total) . " releases.\n");
+	}
+	if ($echooutput === true) {
+		if (isset($argv[1]) && is_numeric($argv[1]) && !isset($argv[2])) {
+			echo $c->header("Categorizing all releases using searchname from the last ${argv[1]} hours. This can take a while, be patient.");
+		} else if (isset($argv[1]) && $argv[1] !== "all" && isset($argv[2]) && !is_numeric($argv[2]) && !preg_match('/\([\d, ]+\)/', $argv[2])) {
+			echo $c->header("Categorizing all non-categorized releases in other->misc using searchname. This can take a while, be patient.");
+		} else if (isset($argv[1]) && isset($argv[2]) && (is_numeric($argv[2]) || preg_match('/\([\d, ]+\)/', $argv[2]))) {
+			echo $c->header("Categorizing all non-categorized releases in ${argv[2]} using searchname. This can take a while, be patient.");
+		} else {
+			echo $c->header("Categorizing all releases using searchname. This can take a while, be patient.");
+		}
 	}
 	$timestart = TIME();
 	if (isset($argv[1]) && is_numeric($argv[1])) {
-		$relcount = categorizeRelease("searchname", "WHERE (iscategorized = 0 OR categoryID = 7010) AND adddate > NOW() - INTERVAL " . $argv[1] . " HOUR", true);
+		$relcount = categorizeRelease("searchname", "WHERE (iscategorized = 0 OR categoryID = 7010) AND adddate > NOW() - INTERVAL " . $argv[1] . " HOUR", $echooutput);
 	} else if (isset($argv[2]) && preg_match('/\([\d, ]+\)/', $argv[2]) && $full === true) {
-		$relcount = categorizeRelease("searchname", str_replace(" AND", "WHERE", $where) . " AND iscategorized = 0 ", true);
+		$relcount = categorizeRelease("searchname", str_replace(" AND", "WHERE", $where) . " AND iscategorized = 0 ", $echooutput);
 	} else if (isset($argv[2]) && preg_match('/\([\d, ]+\)/', $argv[2]) && $all === true) {
-		$relcount = categorizeRelease("searchname", str_replace(" AND", "WHERE", $where), true);
+		$relcount = categorizeRelease("searchname", str_replace(" AND", "WHERE", $where), $echooutput);
 	} else if (isset($argv[2]) && is_numeric($argv[2]) && $argv[1] == "full") {
-		$relcount = categorizeRelease("searchname", str_replace(" AND", "WHERE", $where) . " AND iscategorized = 0 ", true);
+		$relcount = categorizeRelease("searchname", str_replace(" AND", "WHERE", $where) . " AND iscategorized = 0 ", $echooutput);
 	} else if (isset($argv[2]) && is_numeric($argv[2]) && $argv[1] == "all") {
-		$relcount = categorizeRelease("searchname", str_replace(" AND", "WHERE", $where), true);
+		$relcount = categorizeRelease("searchname", str_replace(" AND", "WHERE", $where), $echooutput);
 	} else if (isset($argv[1]) && $argv[1] == "full") {
-		$relcount = categorizeRelease("searchname", "WHERE categoryID = 7010 OR iscategorized = 0", true);
+		$relcount = categorizeRelease("searchname", "WHERE categoryID = 7010 OR iscategorized = 0", $echooutput);
 	} else if (isset($argv[1]) && $argv[1] == "all") {
-		$relcount = categorizeRelease("searchname", "", true);
+		$relcount = categorizeRelease("searchname", "", $echooutput);
 	} else if (isset($argv[1]) && $argv[1] == "preid") {
-		$relcount = categorizeRelease("searchname", "WHERE preid IS NULL AND nzbstatus = 1", true);
+		$relcount = categorizeRelease("searchname", "WHERE preid IS NULL AND nzbstatus = 1", $echooutput);
 	} else {
-		$relcount = categorizeRelease("searchname", "WHERE (iscategorized = 0 OR categoryID = 7010) AND adddate > NOW() - INTERVAL " . $argv[1] . " HOUR", true);
+		$relcount = categorizeRelease("searchname", "WHERE (iscategorized = 0 OR categoryID = 7010) AND adddate > NOW() - INTERVAL " . $argv[1] . " HOUR", $echooutput);
 	}
 	$consoletools = new ConsoleTools();
 	$time = $consoletools->convertTime(TIME() - $timestart);
-	echo $c->header("Finished categorizing " . number_format($relcount) . " releases in " . $time . " seconds, using the usenet subject.\n");
+	if ($echooutput === true) {
+		echo $c->header("Finished categorizing " . number_format($relcount) . " releases in " . $time . " seconds, using the usenet subject.\n");
+	}
 	/*
 	  if (isset($argv[1]) && $argv[1] !== "all") {
 	  echo $c->header("Categorizing all non-categorized releases in other->misc using searchname. This can take a while, be patient.");
@@ -223,25 +239,49 @@ function preName($argv, $argc)
 	  echo $c->header("Finished categorizing " . number_format($relcount) . " releases in " . $time1 . " seconds, using the searchname.\n");
 	  }
 	 */
-	resetSearchnames();
+	if ((isset($argv[2]) && is_numeric($argv[2]) && $full === true) || (isset($argv[2]) && preg_match('/\([\d, ]+\)/', $argv[2]) && $full === true)) {
+		resetSearchnames($argv[2], $echooutput);
+	} else {
+		resetSearchnames('', $echooutput);
+	}
 }
 
-function resetSearchnames()
+function resetSearchnames($groups, $echooutput)
 {
+if ($groups === '') {
+	exit;
+}
 	$db = new DB();
 	$c = new ColorCLI();
-	echo $c->header("Resetting blank searchnames.");
+	if ($groups != '' && is_numeric($groups)) {
+		if ($echooutput === true) {
+			echo $c->header("Resetting blank searchnames on groupID " . $groups . ".");
+		}
+		$where = ' AND groupid = ' . $groups;
+	} else if (preg_match('/\([\d, ]+\)/', $groups)) {
+		if ($echooutput === true) {
+			echo $c->header("Resetting blank searchnames on groupIDs " . str_replace(array('(', ')'), '', $groups) . ".");
+		}
+	} else {
+		if ($echooutput === true) {
+			echo $c->header("Resetting blank searchnames.");
+		}
+		$where = '';
+	}
+
 	$bad = $db->queryDirect("UPDATE releases SET rageid = -1, seriesfull = NULL, season = NULL, episode = NULL, tvtitle = NULL, tvairdate = NULL, imdbid = NULL, musicinfoid = NULL, consoleinfoid = NULL, bookinfoid = NULL, anidbid = NULL, "
-		. "preid = NULL, searchname = name, isrenamed = 0, iscategorized = 0 WHERE searchname = ''");
+		. "preid = NULL, searchname = name, isrenamed = 0, iscategorized = 0 WHERE searchname = ''" . $where);
 	$tot = $bad->rowCount();
-	if ($tot > 0) {
+	if ($tot > 0 && $echooutput === true) {
 		echo $c->primary(number_format($tot) . " Releases had no searchname.");
 	}
-	echo $c->header("Resetting searchnames that are 8 characters or less.");
+	if ($echooutput === true) {
+		echo $c->header("Resetting searchnames that are 8 characters or less.");
+	}
 	$run = $db->queryDirect("UPDATE releases SET rageid = -1, seriesfull = NULL, season = NULL, episode = NULL, tvtitle = NULL, tvairdate = NULL, imdbid = NULL, musicinfoid = NULL, consoleinfoid = NULL, bookinfoid = NULL, anidbid = NULL, "
-		. "preid = NULL, searchname = name, isrenamed = 0, iscategorized = 0 WHERE LENGTH(searchname) <= 8 AND LENGTH(name) > 8");
+		. "preid = NULL, searchname = name, isrenamed = 0, iscategorized = 0 WHERE LENGTH(searchname) <= 8 AND LENGTH(name) > 8" . $where);
 	$total = $run->rowCount();
-	if ($total > 0) {
+	if ($total > 0 && $echooutput === true) {
 		echo $c->primary(number_format($total) . " Releases had searchnames that were 8 characters or less.");
 	}
 }
@@ -249,14 +289,16 @@ function resetSearchnames()
 // Categorizes releases.
 // $type = name or searchname
 // Returns the quantity of categorized releases.
-function categorizeRelease($type, $where, $echooutput = false)
+function categorizeRelease($type, $where, $echooutput)
 {
 	$db = new DB();
 	$cat = new Category();
 	$consoletools = new consoleTools();
 	$relcount = 0;
 	$c = new ColorCLI();
-	echo $c->primary("SELECT id, " . $type . ", groupid FROM releases " . $where);
+	if ($echooutput === true) {
+		echo $c->primary("SELECT id, " . $type . ", groupid FROM releases " . $where);
+	}
 	$resrel = $db->queryDirect("SELECT id, " . $type . ", groupid FROM releases " . $where);
 	$total = $resrel->rowCount();
 	if ($total > 0) {
