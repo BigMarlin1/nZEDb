@@ -33,16 +33,17 @@ if ($site->nntpproxy === "1") {
 if ($releases->hashcheck == 0) {
 	exit($c->error("You must run update_binaries.php to update your collectionhash."));
 }
-
+//var_dump($argv);
+//exit;
 if ($pieces[0] != 'Stage7b') {
 	// Update Binaries per group if group is active
-	if ($pieces[1] === 1) {
+	if ($pieces[1] === '1') {
 		$binaries->updateGroup($group, $nntp);
 	}
 
 	// Backfill per group if group enabled for backfill
-	if ($pieces[2] === 1) {
-		$backfill->backfillPostAllGroups($nntp, $groupname, 20000, 'normal');
+	if ($pieces[2] === '1') {
+		$backfill->backfillPostAllGroups($nntp, $groupname, 100000, 'normal');
 	}
 
 	// Update Releases per group
@@ -62,13 +63,12 @@ if ($pieces[0] != 'Stage7b') {
 		exit();
 	}
 
-
-	echo $c->header("Processing renametopre for group ${groupid}");
-	passthru("php " . $path . "renametopre.php full " . $groupid . " false");
-	$postprocess = new PostProcess(true);
-	$postprocess->processAdditional(null, null, null, $groupid, $nntp);
-	$nfopostprocess = new Nfo(true);
-	$nfopostprocess->processNfoFiles(null, null, null, $groupid, $nntp);
+//	echo $c->header("Processing renametopre for group ${groupid}");
+//	passthru("php " . $path . "renametopre.php full " . $groupid . " false");
+//	$postprocess = new PostProcess(true);
+//	$postprocess->processAdditional(null, null, null, $groupid, $nntp);
+//	$nfopostprocess = new Nfo(true);
+//	$nfopostprocess->processNfoFiles(null, null, null, $groupid, $nntp);
 	if ($site->nntpproxy != "1") {
 		$nntp->doQuit();
 	}

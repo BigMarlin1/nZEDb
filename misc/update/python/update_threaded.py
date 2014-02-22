@@ -33,6 +33,15 @@ elif conf['DB_SYSTEM'] == "pgsql":
 cur = con.cursor()
 
 threads = 15
+if len(sys.argv) == 1:
+	print(bcolors.ERROR + "\nThis script will process every release per group, running all enabled scripts."
+		"\nThis script can run on 1 group, an array of groups or all groups.\n"
+		"\nEach group is processed in a single thread, for all script. For example, 10 groups, 10 threads.\n"
+		"\npython " + sys.argv[0] + " 155              ...: To run against groupid 155."
+		"\npython " + sys.argv[0] + " '(155, 52)'      ...: To run against groupid 155 and 52."
+		"\npython " + sys.argv[0] + " all              ...: To run against all groups." + bcolors.ENDC)
+	sys.exit()
+
 print(bcolors.HEADER + "\nUpdate Per Group Threaded Started at {}".format(datetime.datetime.now().strftime("%H:%M:%S")) + bcolors.ENDC)
 
 start_time = time.time()
@@ -45,10 +54,20 @@ if int(allowed[0]) == 0:
 	print(bcolors.ERROR + "Table per group is not enabled" + bcolors.ENDC)
 	sys.exit()
 
-#cur.execute("SELECT id FROM groups WHERE active = 1 ORDER by cast(last_record as signed) - cast(first_record as signed) DESC")
-cur.execute("SELECT DISTINCT g.id, active, backfill FROM groups g LEFT OUTER JOIN releases r ON r.groupid = g.id GROUP BY g.id ORDER by active DESC, backfill DESC, (cast(last_record as signed) - cast(first_record as signed)) DESC, COUNT(r.id) DESC")
-datas = cur.fetchall()
-
+if len(sys.argv) > 1 and sys.argv[1] != 'all':
+	try:
+		cur.execute("SELECT id, active, backfill FROM groups WHERE id = "+sys.argv[1])
+		datas = cur.fetchall()
+	except:
+		cur.execute("SELECT id, active, backfill FROM groups WHERE id IN "+sys.argv[1])
+		datas = cur.fetchall()
+try:
+	if not datas:
+		cur.execute("SELECT DISTINCT g.id, active, backfill FROM groups g LEFT OUTER JOIN releases r ON r.groupid = g.id GROUP BY g.id ORDER by active DESC, backfill DESC, (cast(last_record as signed) - cast(first_record as signed)) DESC, COUNT(r.id) DESC")
+		datas = cur.fetchall()
+except:
+	cur.execute("SELECT DISTINCT g.id, active, backfill FROM groups g LEFT OUTER JOIN releases r ON r.groupid = g.id GROUP BY g.id ORDER by active DESC, backfill DESC, (cast(last_record as signed) - cast(first_record as signed)) DESC, COUNT(r.id) DESC")
+	datas = cur.fetchall()
 if not datas:
 	print(bcolors.HEADER + "No Work to Process" + bcolors.ENDC)
 	cur.close()
@@ -98,12 +117,8 @@ def main():
 			p.start()
 
 	#now load some arbitrary jobs into the queue
-	count = 0
 	for release in datas:
-		if count >= threads:
-			count = 0
-		count += 1
-		my_queue.put("%s  %s  %s  %s" % (str(release[0]), str(release[1]), str(release[2]), count))
+		my_queue.put("%s  %s  %s" % (str(release[0]), str(release[1]), str(release[2])))
 
 	my_queue.join()
 	cur.close()
